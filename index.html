@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Xtream Player</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #0b0f19;
+      color: white;
+      margin: 0;
+      padding: 20px;
+    }
+
+    .box {
+      max-width: 1000px;
+      margin: auto;
+      background: #111827;
+      padding: 20px;
+      border-radius: 15px;
+    }
+
+    input, button {
+      width: 100%;
+      padding: 12px;
+      margin: 8px 0;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      box-sizing: border-box;
+    }
+
+    button {
+      background: #2563eb;
+      color: white;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    button:hover {
+      background: #1d4ed8;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 10px;
+      margin: 15px 0;
+    }
+
+    .tabs button {
+      flex: 1;
+      background: #374151;
+    }
+
+    .tabs button.active {
+      background: #16a34a;
+    }
+
+    video {
+      width: 100%;
+      margin-top: 15px;
+      border-radius: 12px;
+      background: black;
+    }
+
+    .lista {
+      margin-top: 20px;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+
+    .item {
+      background: #1f2937;
+      margin-bottom: 10px;
+      padding: 12px;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+
+    .item:hover {
+      background: #374151;
+    }
+
+    .nome {
+      font-weight: bold;
+      font-size: 16px;
+    }
+
+    .tipo {
+      color: #93c5fd;
+      font-size: 13px;
+    }
+
+    .erro {
+      color: #f87171;
+      margin-top: 10px;
+    }
+
+    .ok {
+      color: #4ade80;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="box">
+  <h2>Xtream Codes Player</h2>
+
+  <input id="servidor" placeholder="Servidor. Ex: http://exemplo.com:8080">
+  <input id="usuario" placeholder="Usuário">
+  <input id="senha" placeholder="Senha" type="password">
+
+  <button onclick="conectar()">Conectar</button>
+
+  <div id="status"></div>
+
+  <div class="tabs">
+    <button onclick="carregar('live')" id="btnLive">Canais</button>
+    <button onclick="carregar('vod')" id="btnVod">Filmes</button>
+    <button onclick="carregar('series')" id="btnSeries">Séries</button>
+  </div>
+
+  <input id="busca" placeholder="Pesquisar..." oninput="filtrar()">
+
+  <video id="player" controls autoplay></video>
+
+  <div class="lista" id="lista"></div>
+</div>
+
+<script>
+let servidor = "";
+let usuario = "";
+let senha = "";
+let itens = [];
+let tipoAtual = "";
+
+function limparServidor(url) {
+  return url.trim().replace(/\/$/, "");
+}
+
+function apiUrl(action = "") {
+  let url = `/api/xtream?servidor=${encodeURIComponent(servidor)}&usuario=${encodeURIComponent(usuario)}&senha=${encodeURIComponent(senha)}`;
+
+  if (action) {
+    url += `&action=${encodeURIComponent(action)}`;
+  }
+
+  return url;
+}
+
+async function conectar() {
+  servidor = limparServidor(document.getElementById("servidor").value);
+  usuario = document.getElementById("usuario").value.trim();
+  senha = document.getElementById("senha").value.trim();
+
+  const status = document.getElementById("status");
+
+  if (!servidor || !usuario || !senha) {
+    status.innerHTML = '<p class="erro">Preencha servidor, usuário e senha.</p>';
+    return;
+  }
+
+  try {
+    status.innerHTML = '<p class="ok">Conectando...</p>';
+
+    const res = await fetch(apiUrl());
+    const dados = await res.json();
+
+    if (dados.user_info && dados.user_info.auth == 1) {
+      status.innerHTML = '<p class="ok">Conectado com sucesso.</p>';
+      carregar("live");
+    } else {
+      status.innerHTML = '<p class="erro">Login inválido ou sem autorização.</p>';
+    }
+  } catch (e) {
+    status.innerHTML = '<p class="erro">Erro ao conectar. Verifique o arquivo api/xtream.js no Vercel.</p>';
+  }
+}
+
+async function carregar(tipo) {
+  if (!servidor || !usuario || !senha) {
+    document.getElementById("status").innerHTML = '<p class="erro">Conecte primeiro.</p>';
+    return;
+  }
+
+  tipoAtual = tipo;
+
+  document.getElementById("btnLive").classList.remove("active");
+  document.getElementById("btnVod").classList.remove("active");
+  document.getElementById("btnSeries").classList.remove("active");
+
+  if (tipo === "live") document.getElementById("btnLive").classList.add("active");
+  if (tipo === "vod") document.getElementById("btnVod").classList.add("active");
+  if (tipo === "series") document.getElementById("btnSeries").classList.add("active");
+
+  let action = "";
+
+  if (tipo === "live") action = "get_live_streams";
+  if (tipo === "vod") action = "get_vod_streams";
+  if (tipo === "series") action = "get_series";
+
+  document.getElementById("lista").innerHTML = "Carregando...";
+
+  try {
+    const res = await fetch(apiUrl(action));
+    itens = await res.json();
+
+    if (!Array.isArray(itens)) {
+      document.getElementById("lista").innerHTML = '<p class="erro">Lista inválida ou sem permissão.</p>';
+      return;
+    }
+
+    mostrarLista(itens);
+  } catch (e) {
+    document.getElementById("lista").innerHTML = '<p class="erro">Erro ao carregar lista.</p>';
+  }
+}
+
+function mostrarLista(lista) {
+  const div = document.getElementById("lista");
+  div.innerHTML = "";
+
+  if (!lista || lista.length === 0) {
+    div.innerHTML = "Nenhum item encontrado.";
+    return;
+  }
+
+  lista.forEach(item => {
+    const nome = item.name || "Sem nome";
+
+    const el = document.createElement("div");
+    el.className = "item";
+    el.innerHTML = `
+      <div class="nome">${nome}</div>
+      <div class="tipo">${tipoAtual.toUpperCase()}</div>
+    `;
+
+    el.onclick = () => abrirItem(item);
+    div.appendChild(el);
+  });
+}
+
+function abrirItem(item) {
+  const player = document.getElementById("player");
+  let url = "";
+
+  if (tipoAtual === "live") {
+    url = `${servidor}/live/${usuario}/${senha}/${item.stream_id}.m3u8`;
+  }
+
+  if (tipoAtual === "vod") {
+    const ext = item.container_extension || "mp4";
+    url = `${servidor}/movie/${usuario}/${senha}/${item.stream_id}.${ext}`;
+  }
+
+  if (tipoAtual === "series") {
+    alert("Séries precisam abrir episódios. Depois monto essa parte.");
+    return;
+  }
+
+  player.src = url;
+  player.play();
+}
+
+function filtrar() {
+  const termo = document.getElementById("busca").value.toLowerCase();
+
+  const filtrados = itens.filter(item => {
+    const nome = item.name || "";
+    return nome.toLowerCase().includes(termo);
+  });
+
+  mostrarLista(filtrados);
+}
+</script>
+
+</body>
+</html>
