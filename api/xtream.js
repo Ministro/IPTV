@@ -6,10 +6,12 @@ export default async function handler(req, res) {
   }
 
   try {
-    let url = `${servidor}/player_api.php?username=${usuario}&password=${senha}`;
+    const base = servidor.replace(/\/$/, "");
+
+    let url = `${base}/player_api.php?username=${encodeURIComponent(usuario)}&password=${encodeURIComponent(senha)}`;
 
     if (action) {
-      url += `&action=${action}`;
+      url += `&action=${encodeURIComponent(action)}`;
     }
 
     const resposta = await fetch(url);
@@ -19,10 +21,10 @@ export default async function handler(req, res) {
     res.setHeader("Content-Type", "application/json");
 
     return res.status(200).send(texto);
-  } catch (e) {
+  } catch (erro) {
     return res.status(500).json({
       erro: "Erro ao conectar no servidor Xtream",
-      detalhe: e.message
+      detalhe: erro.message
     });
   }
 }
