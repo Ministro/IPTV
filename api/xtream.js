@@ -6,9 +6,13 @@ export default async function handler(req, res) {
   }
 
   try {
-    const base = servidor.replace(/\/$/, "");
+    let base = decodeURIComponent(servidor).trim();
+    base = base.replace(/\/$/, "");
 
-    let url = `${base}/player_api.php?username=${encodeURIComponent(usuario)}&password=${encodeURIComponent(senha)}`;
+    const user = encodeURIComponent(usuario);
+    const pass = encodeURIComponent(senha);
+
+    let url = `${base}/player_api.php?username=${user}&password=${pass}`;
 
     if (action) {
       url += `&action=${encodeURIComponent(action)}`;
@@ -23,7 +27,7 @@ export default async function handler(req, res) {
     return res.status(200).send(texto);
   } catch (erro) {
     return res.status(500).json({
-      erro: "Erro ao conectar no servidor Xtream",
+      erro: "Erro ao conectar",
       detalhe: erro.message
     });
   }
